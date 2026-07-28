@@ -861,16 +861,26 @@ function OnePlugin:showCached()
             mandatory = self:relativeDayLabel(info.iso_date),
             keep_menu_open = false,
             callback = function() self:openCachedIssue(info.image_id) end,
-            hold_callback = function() self:confirmDeleteIssue(info.image_id) end,
+            hold_callback = function() self:showCachedItemActions(info) end,
         }
     end
     self._cached_menu = Menu:new{
         title = _("Cached content"),
-        subtitle = T(_("%1 issues · %2"), #list, Cleanup.human_size(stats.total_bytes)),
+        subtitle = T(_("%1 issues · %2"), #list, Cleanup.human_size(stats.total_bytes))
+            .. "\n" .. _("Long-press: open / delete"),
         item_table = items,
         is_borderless = true,
         title_bar_fm_style = true,
     }
+    -- Menu:onMenuHold is a no-op by default (unlike TouchMenu which calls
+    -- item.hold_callback automatically). Override it on the instance so
+    -- long-press pops up the action dialog (open / delete).
+    function self._cached_menu:onMenuHold(item)
+        if item.hold_callback then
+            item.hold_callback()
+        end
+        return true
+    end
     UIManager:show(self._cached_menu)
 end
 
@@ -898,6 +908,28 @@ function OnePlugin:confirmDeleteIssue(image_id)
             self:showCached()
         end,
     })
+end
+
+-- Long-press a cached issue to choose: open or delete. Single-tap opens directly.
+function OnePlugin:showCachedItemActions(info)
+    local dialog
+    local function act(fn)
+        return function()
+            UIManager:close(dialog)
+            fn()
+        end
+    end
+    dialog = ButtonDialog:new{
+        title = T(_("VOL.%1"), info.vol or "?") .. " · " .. tostring(info.iso_date or ""),
+        title_align = "center",
+        buttons = {
+            {
+                { text = _("Delete"), callback = act(function() self:confirmDeleteIssue(info.image_id) end) },
+                { text = _("Open"), callback = act(function() self:openCachedIssue(info.image_id) end) },
+            },
+        },
+    }
+    UIManager:show(dialog)
 end
 
 function OnePlugin:relativeDayLabel(iso_date)

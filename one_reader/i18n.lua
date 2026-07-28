@@ -72,6 +72,8 @@ local zh = {
     ["Collection"] = "合集",
     ["Delete this issue?"] = "删除这一期？",
     ["Delete"] = "删除",
+    ["Open"] = "打开",
+    ["Long-press: open / delete"] = "长按：打开 / 删除",
 
     -- Settings
     ["Content settings"] = "内容设置",
