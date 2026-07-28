@@ -26,7 +26,7 @@ local function _(text)
 end
 
 local LOG_MODULE = "[ONE]"
-local PROJECT_URL = "https://github.com/qiuyukang/one.koplugin"
+local PROJECT_URL = "https://github.com/finlater/one.koplugin"
 
 -- Brand prefix for gesture/shortcut action titles so they read as one group
 -- (e.g. "ONE · Next issue") in KOReader's gesture manager.
