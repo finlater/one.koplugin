@@ -20,8 +20,6 @@ local zh = {
     ["Article"] = "文章",
     ["Question"] = "问答",
     ["VOL.%1"] = "VOL.%1",
-    ["On this day, ONE published only the image — no article or question."] =
-        "这一天，「ONE·一个」只更新了图文，没有文章与问答。",
     ["No article on this day."] = "这一天，「ONE·一个」没有更新文章。",
     ["No question on this day."] = "这一天，「ONE·一个」没有更新问答。",
 

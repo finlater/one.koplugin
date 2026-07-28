@@ -216,24 +216,6 @@ local function image_chapter_body(issue, asset_state)
     if img.text then
         parts[#parts + 1] = '<p class="cita">' .. xml_escape(img.text) .. "</p>"
     end
-    -- Gap-day note: ONE occasionally publishes only the image for a day (or omits
-    -- just the article or just the question). The image chapter is always present,
-    -- so it's the natural home for a gentle note about what's absent -- otherwise a
-    -- lone image chapter reads like a failed download.
-    local has_article = (issue.articles and #issue.articles > 0)
-        or (issue.article ~= nil)
-    local has_question = issue.question ~= nil
-    local note
-    if not has_article and not has_question then
-        note = _("On this day, ONE published only the image — no article or question.")
-    elseif not has_article then
-        note = _("No article on this day.")
-    elseif not has_question then
-        note = _("No question on this day.")
-    end
-    if note then
-        parts[#parts + 1] = '<p class="note">' .. xml_escape(note) .. "</p>"
-    end
     return table.concat(parts, "\n")
 end
 
@@ -267,33 +249,62 @@ local function question_chapter_body(issue, asset_state)
     return table.concat(parts, "\n")
 end
 
+-- A stand-in chapter body for a content type that is absent on a given day, so
+-- the gap is noted at the right position (article after the image, question
+-- after the article) instead of being folded into the image chapter.
+local function placeholder_chapter_body(title, note)
+    local parts = { "<h1>" .. xml_escape(title) .. "</h1>" }
+    parts[#parts + 1] = '<p class="note">' .. xml_escape(note) .. "</p>"
+    return table.concat(parts, "\n")
+end
+
 -- Build the three chapters for one issue. Returns a list of chapter descriptors
 -- { nav_title, title } and fills entries/manifest/spine, given a filename prefix
 -- so collections can namespace each issue's files.
 local function build_issue_chapters(issue, asset_state, entries, manifest, spine, prefix)
-    -- The image chapter is always present; article/question are optional so that
-    -- date-addressable (image-only) historical issues still produce a valid book.
+    -- All three slots (image/article/question) are always present: real content
+    -- when available, a one-line placeholder when not. This keeps a missing
+    -- article or question noted in its own position instead of leaking the note
+    -- into the image chapter (which used to put it before the article).
     local chapters = {
         { title = _("Image"), nav_title = _("Image"), body = image_chapter_body(issue, asset_state) },
     }
     -- New issues carry issue.articles (one or more essays); older caches carry a
-    -- single issue.article. Render one chapter per essay either way.
+    -- single issue.article. Render one chapter per essay; when none exists, emit
+    -- a placeholder so the "no article" note sits in the article's own slot.
     local articles = issue.articles or (issue.article and { issue.article }) or {}
-    for _a = 1, #articles do
-        local article = articles[_a]
+    if #articles > 0 then
+        for _a = 1, #articles do
+            local article = articles[_a]
+            chapters[#chapters + 1] = {
+                title = article.title or _("Article"),
+                nav_title = _("Article") .. (article.title
+                    and (" · " .. article.title) or ""),
+                body = article_chapter_body(article, asset_state),
+            }
+        end
+    else
         chapters[#chapters + 1] = {
-            title = article.title or _("Article"),
-            nav_title = _("Article") .. (article.title
-                and (" · " .. article.title) or ""),
-            body = article_chapter_body(article, asset_state),
+            title = _("Article"),
+            nav_title = _("Article"),
+            body = placeholder_chapter_body(_("Article"), _("No article on this day.")),
         }
     end
+    -- The question chapter always gets a slot: the real answer when present, a
+    -- placeholder otherwise, so a missing question is announced after the article
+    -- rather than silently dropped.
     if issue.question then
         chapters[#chapters + 1] = {
             title = issue.question.title or _("Question"),
             nav_title = _("Question") .. (issue.question.title
                 and (" · " .. issue.question.title) or ""),
             body = question_chapter_body(issue, asset_state),
+        }
+    else
+        chapters[#chapters + 1] = {
+            title = _("Question"),
+            nav_title = _("Question"),
+            body = placeholder_chapter_body(_("Question"), _("No question on this day.")),
         }
     end
     local nodes = {}
