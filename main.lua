@@ -993,7 +993,12 @@ function OnePlugin:showEndOfBookPrompt(issue)
             {
                 { text = _("Pick a date..."),
                   callback = act(function() self:showDatePicker() end) },
-                { text = _("Close"), callback = act(function() self.ui:handleEvent(Event:new("Close")) end) },
+                -- Use "Home" (not "Close"): ReaderUI:onClose only tears down the
+                -- reader without re-showing FileManager. On Android (single-window,
+                -- FileManager already closed when the book was opened) that leaves no
+                -- visible widget, so KOReader quits. onHome closes the book *and*
+                -- shows the file browser, which is the intended "close book" behavior.
+                { text = _("Close"), callback = act(function() self.ui:handleEvent(Event:new("Home")) end) },
             },
         },
     }
