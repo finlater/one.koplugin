@@ -17,6 +17,7 @@ local Client = require("one_reader.client")
 local Cleanup = require("one_reader.cleanup")
 local DateIndex = require("one_reader.date_index")
 local I18n = require("one_reader.i18n")
+local Integrations = require("one_reader.integrations.init")
 local One = require("one_reader.one")
 local Settings = require("one_reader.settings")
 
@@ -47,12 +48,31 @@ local OnePlugin = WidgetContainer:extend{
     version = "0.2.0",
 }
 
+-- Stable launcher used by third-party home screens.  Keep this independent of
+-- the plugin's configurable default-open behaviour: a pinned ONE shortcut is
+-- specifically a shortcut to the recent-seven-days page.
+function OnePlugin:openRecentDays()
+    return self:showRecent()
+end
+
+-- SimpleUI and ZenUI discover this conventional plugin entry point.
+function OnePlugin:launch()
+    return self:openRecentDays()
+end
+
+function OnePlugin:onZenUIReady()
+    Integrations.onZenUIReady(self)
+    return true
+end
+
 function OnePlugin:init()
     self.settings = Settings:new()
     self.client = Client:new()
     self._current_issue = nil
     self:onDispatcherRegisterActions()
     self.ui.menu:registerToMainMenu(self)
+    self.integrations = Integrations
+    self.integrations.register(self)
     self:maybeAutoCleanup()
     self:setupEndOfBook()
     logger.info(LOG_MODULE, "initialized v" .. self.version)

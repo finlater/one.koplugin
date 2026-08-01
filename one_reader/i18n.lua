@@ -10,6 +10,7 @@ local zh = {
     -- Main menu
     ["Today's issue"] = "今日一期",
     ["Recent 7 days"] = "最近 7 天",
+    ["ONE · Recent 7 days"] = "ONE · 最近 7 天",
     ["Browse by date"] = "按日期查看",
     ["Cached content"] = "已缓存内容",
     ["Settings"] = "设置",
