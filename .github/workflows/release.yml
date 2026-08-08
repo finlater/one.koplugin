@@ -101,6 +101,16 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+      - name: Build release notes preface
+        if: steps.version.outputs.automatic_release == 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          bash scripts/extract_release_notes.sh \
+            "$VERSION" \
+            dist/release-preface.md
+          cat dist/release-preface.md
+
       - name: Publish GitHub Release
         if: steps.version.outputs.automatic_release == 'true'
         env:
@@ -111,7 +121,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          release_preface="$(cat dist/release-preface.md)"
           gh release create "$TAG" "$ARCHIVE" "$ARCHIVE.sha256" \
             --target "$GITHUB_SHA" \
             --title "Version $VERSION" \
+            --notes "$release_preface" \
             --generate-notes
