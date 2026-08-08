@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - _meta.lua
+      - .github/workflows/release.yml
   workflow_dispatch:
 
 permissions:
@@ -16,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -48,11 +49,17 @@ jobs:
         if: github.event_name == 'push' && steps.version.outputs.automatic_release != 'true'
         run: echo "Tag ${{ steps.version.outputs.tag }} already exists; no package was published."
 
+      - name: Install LuaJIT
+        if: github.event_name == 'workflow_dispatch' || steps.version.outputs.automatic_release == 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y luajit
+
       - name: Run updater tests
         if: github.event_name == 'workflow_dispatch' || steps.version.outputs.automatic_release == 'true'
         run: |
-          lua spec/updater_spec.lua
-          lua spec/updater_ui_spec.lua
+          luajit spec/updater_spec.lua
+          luajit spec/updater_ui_spec.lua
 
       - name: Build plugin package
         if: github.event_name == 'workflow_dispatch' || steps.version.outputs.automatic_release == 'true'
