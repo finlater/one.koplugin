@@ -26,6 +26,17 @@ local defaults = {
     },
     -- image_id -> { image_id, vol, iso_date, article_id, question_id, saved_at }
     cached = {},
+    update = {
+        auto_check = false,
+        prefer_proxy = false,
+        last_check = 0,
+        available_version = "",
+        archive_url = "",
+        checksum_url = "",
+        archive_size = 0,
+        release_notes = "",
+        release_url = "",
+    },
     download_dir = "",               -- "" = use default_cache_dir
 }
 

@@ -1,0 +1,90 @@
+local Blitbuffer = require("ffi/blitbuffer")
+local CenterContainer = require("ui/widget/container/centercontainer")
+local Device = require("device")
+local Font = require("ui/font")
+local FrameContainer = require("ui/widget/container/framecontainer")
+local Geom = require("ui/geometry")
+local InputContainer = require("ui/widget/container/inputcontainer")
+local ProgressWidget = require("ui/widget/progresswidget")
+local Size = require("ui/size")
+local TextWidget = require("ui/widget/textwidget")
+local UIManager = require("ui/uimanager")
+local VerticalGroup = require("ui/widget/verticalgroup")
+local time = require("ui/time")
+
+local Screen = Device.screen
+
+local DownloadDialog = InputContainer:extend{
+    title = "",
+    progress_max = 100,
+    refresh_time_seconds = 1,
+}
+
+function DownloadDialog:init()
+    self.dimen = Screen:getSize()
+    self.last_redraw_time_ms = 0
+    local width = Screen:getWidth() - Screen:scaleBySize(80)
+    local vertical_group = VerticalGroup:new{}
+
+    self.title_widget = TextWidget:new{
+        text = self.title or "",
+        face = Font:getFace("ffont"),
+        bold = true,
+        max_width = width,
+    }
+    self.title_container = CenterContainer:new{
+        dimen = Geom:new{ w = width, h = self.title_widget:getSize().h },
+        self.title_widget,
+    }
+    table.insert(vertical_group, self.title_container)
+
+    self.progress_bar = ProgressWidget:new{
+        fillcolor = Blitbuffer.COLOR_BLACK,
+        width = width,
+        height = Screen:scaleBySize(18),
+        padding = Size.padding.large,
+        margin = Size.margin.tiny,
+        percentage = 0,
+    }
+    table.insert(vertical_group, self.progress_bar)
+
+    self[1] = CenterContainer:new{
+        dimen = Screen:getSize(),
+        FrameContainer:new{
+            radius = Size.radius.window,
+            bordersize = Size.border.window,
+            padding = Size.padding.large,
+            background = Blitbuffer.COLOR_WHITE,
+            vertical_group,
+        },
+    }
+end
+
+function DownloadDialog:reportProgress(progress)
+    self.progress_bar:setPercentage(progress / self.progress_max)
+    local now = time.now()
+    local elapsed = now - self.last_redraw_time_ms
+    if self.progress_bar.percentage >= 1
+        or elapsed >= self.refresh_time_seconds * 1000 * 1000 then
+        self.last_redraw_time_ms = now
+        UIManager:setDirty(self, function() return "fast", self.dimen end)
+        UIManager:forceRePaint()
+    end
+end
+
+function DownloadDialog:setTitle(title)
+    self.title = title or ""
+    self.title_widget:setText(self.title)
+    UIManager:setDirty(self, function() return "fast", self.dimen end)
+    UIManager:forceRePaint()
+end
+
+function DownloadDialog:show()
+    UIManager:show(self, "ui")
+end
+
+function DownloadDialog:close()
+    UIManager:close(self, "ui")
+end
+
+return DownloadDialog
