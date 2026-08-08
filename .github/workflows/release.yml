@@ -82,6 +82,25 @@ jobs:
             exit 1
           fi
 
+      - name: Upload plugin package artifact
+        if: github.event_name == 'workflow_dispatch' || steps.version.outputs.automatic_release == 'true'
+        uses: actions/upload-artifact@v6
+        with:
+          name: one.koplugin-v${{ steps.version.outputs.version }}
+          path: ${{ steps.version.outputs.archive }}
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+
+      - name: Upload checksum artifact
+        if: github.event_name == 'workflow_dispatch' || steps.version.outputs.automatic_release == 'true'
+        uses: actions/upload-artifact@v6
+        with:
+          name: one.koplugin-v${{ steps.version.outputs.version }}-checksum
+          path: ${{ steps.version.outputs.archive }}.sha256
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Publish GitHub Release
         if: steps.version.outputs.automatic_release == 'true'
         env:
