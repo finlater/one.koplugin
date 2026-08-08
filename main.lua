@@ -201,11 +201,6 @@ function OnePlugin:getMainMenuItems()
             text = _("Settings"),
             sub_item_table_func = function() return self:getSettingsItems() end,
         },
-        {
-            text = T(_("About (v%1)"), self.version),
-            keep_menu_open = true,
-            callback = function() self:showAbout() end,
-        },
     }
 end
 
@@ -1093,6 +1088,11 @@ function OnePlugin:getSettingsItems()
         {
             text = _("Cache management"),
             sub_item_table_func = function() return self:getCacheItems() end,
+        },
+        {
+            text = T(_("About (v%1)"), self.version),
+            keep_menu_open = true,
+            callback = function() self:showAbout() end,
         },
     }
 end
