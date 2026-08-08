@@ -85,10 +85,10 @@ ui:_show_release{
     version = "0.6.0",
     notes = "First change\nSecond change",
 }
-expect(shown_widget.title == "Update available · v0.6.0",
+expect(shown_widget.title == "v0.5.0 → v0.6.0",
     "release notes viewer title was wrong")
-expect(shown_widget.text:find("First change", 1, true) ~= nil
+expect(shown_widget.text == "First change\nSecond change"
     and shown_widget.buttons_table[1][2].text == "Download and install",
-    "release notes viewer did not expose notes and install action")
+    "release notes viewer should show only notes and the install action")
 
 print(("updater_ui_spec: %d checks"):format(checks))
