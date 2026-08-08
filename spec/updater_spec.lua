@@ -103,6 +103,7 @@ local main = assert(io.open("main.lua", "r")):read("*a")
 local meta_version = meta:match('version%s*=%s*"([^"]+)"')
 expect(main:find('version = PluginMeta.version', 1, true) ~= nil,
     "main.lua should use the metadata version")
-expect(meta_version == "0.5.0", "unexpected release version")
+expect(meta_version and meta_version:match("^%d+%.%d+%.%d+$") ~= nil,
+    "metadata version should use X.Y.Z format")
 
 print(("updater_spec: %d checks"):format(checks))
