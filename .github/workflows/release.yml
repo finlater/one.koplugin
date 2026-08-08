@@ -1,0 +1,129 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - _meta.lua
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  package-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read and validate version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(sed -nE 's/^[[:space:]]*version[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' _meta.lua | head -n 1)"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "error: _meta.lua version must use X.Y.Z format" >&2
+            exit 1
+          fi
+          tag="v$version"
+
+          automatic_release=false
+          if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
+            if ! git rev-parse --verify --quiet "refs/tags/$tag"; then
+              automatic_release=true
+            fi
+          fi
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "archive=dist/one.koplugin-v${version}.zip" >> "$GITHUB_OUTPUT"
+          echo "automatic_release=$automatic_release" >> "$GITHUB_OUTPUT"
+
+      - name: Explain existing release
+        if: github.event_name == 'push' && steps.version.outputs.automatic_release != 'true'
+        run: echo "Tag ${{ steps.version.outputs.tag }} already exists; no package was published."
+
+      - name: Run updater tests
+        if: github.event_name == 'workflow_dispatch' || steps.version.outputs.automatic_release == 'true'
+        run: |
+          lua spec/updater_spec.lua
+          lua spec/updater_ui_spec.lua
+
+      - name: Build plugin package
+        if: github.event_name == 'workflow_dispatch' || steps.version.outputs.automatic_release == 'true'
+        run: bash scripts/package_release.sh "${{ steps.version.outputs.archive }}"
+
+      - name: Generate SHA-256 checksum
+        if: github.event_name == 'workflow_dispatch' || steps.version.outputs.automatic_release == 'true'
+        shell: bash
+        run: |
+          archive="${{ steps.version.outputs.archive }}"
+          (
+            cd "$(dirname "$archive")"
+            sha256sum "$(basename "$archive")" > "$(basename "$archive").sha256"
+          )
+
+      - name: Verify OTA package layout
+        if: github.event_name == 'workflow_dispatch' || steps.version.outputs.automatic_release == 'true'
+        shell: bash
+        run: |
+          archive="${{ steps.version.outputs.archive }}"
+          test "$(unzip -Z1 "$archive" | head -n 1)" = "one.koplugin/"
+          unzip -Z1 "$archive" | grep -qx "one.koplugin/main.lua"
+          unzip -Z1 "$archive" | grep -qx "one.koplugin/_meta.lua"
+          unzip -Z1 "$archive" | grep -qx "one.koplugin/one_reader/updater.lua"
+          if unzip -Z1 "$archive" | grep -Eq '^one\.koplugin/(spec|scripts|docs|design|\.github)/'; then
+            echo "error: development-only files were included" >&2
+            exit 1
+          fi
+
+      - name: Upload plugin package artifact
+        if: github.event_name == 'workflow_dispatch' || steps.version.outputs.automatic_release == 'true'
+        uses: actions/upload-artifact@v6
+        with:
+          name: one.koplugin-v${{ steps.version.outputs.version }}
+          path: ${{ steps.version.outputs.archive }}
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+
+      - name: Upload checksum artifact
+        if: github.event_name == 'workflow_dispatch' || steps.version.outputs.automatic_release == 'true'
+        uses: actions/upload-artifact@v6
+        with:
+          name: one.koplugin-v${{ steps.version.outputs.version }}-checksum
+          path: ${{ steps.version.outputs.archive }}.sha256
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Build release notes preface
+        if: steps.version.outputs.automatic_release == 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          bash scripts/extract_release_notes.sh \
+            "$VERSION" \
+            dist/release-preface.md
+          cat dist/release-preface.md
+
+      - name: Publish GitHub Release
+        if: steps.version.outputs.automatic_release == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
+          ARCHIVE: ${{ steps.version.outputs.archive }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          release_preface="$(cat dist/release-preface.md)"
+          gh release create "$TAG" "$ARCHIVE" "$ARCHIVE.sha256" \
+            --target "$GITHUB_SHA" \
+            --title "Version $VERSION" \
+            --notes "$release_preface" \
+            --generate-notes

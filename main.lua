@@ -20,6 +20,9 @@ local I18n = require("one_reader.i18n")
 local Integrations = require("one_reader.integrations.init")
 local One = require("one_reader.one")
 local Settings = require("one_reader.settings")
+local Updater = require("one_reader.updater")
+local UpdaterUI = require("one_reader.updater_ui")
+local PluginMeta = require("_meta")
 
 -- `_` is the translation function; never reuse it as a loop placeholder here.
 local function _(text)
@@ -45,7 +48,7 @@ end
 local OnePlugin = WidgetContainer:extend{
     name = "one",
     is_doc_only = false,
-    version = "0.2.0",
+    version = PluginMeta.version,
 }
 
 -- Stable launcher used by third-party home screens.  Keep this independent of
@@ -67,6 +70,15 @@ end
 
 function OnePlugin:init()
     self.settings = Settings:new()
+    local updater = Updater:new{
+        settings = self.settings,
+        current_version = self.version,
+    }
+    self.updater = UpdaterUI:new{
+        updater = updater,
+        settings = self.settings,
+        is_connected = function() return self:isNetworkOnline() end,
+    }
     self.client = Client:new()
     self._current_issue = nil
     self:onDispatcherRegisterActions()
@@ -75,6 +87,7 @@ function OnePlugin:init()
     self.integrations.register(self)
     self:maybeAutoCleanup()
     self:setupEndOfBook()
+    self.updater:schedule_auto_check()
     logger.info(LOG_MODULE, "initialized v" .. self.version)
 end
 
@@ -1064,6 +1077,16 @@ end
 function OnePlugin:getSettingsItems()
     return {
         {
+            text_func = function()
+                local version = self.updater:available_version()
+                if version then
+                    return T(_("Update management · v%1 available"), version)
+                end
+                return _("Update management")
+            end,
+            sub_item_table_func = function() return self:getUpdateItems() end,
+        },
+        {
             text = _("Content settings"),
             sub_item_table_func = function() return self:getContentSettingsItems() end,
         },
@@ -1072,6 +1095,65 @@ function OnePlugin:getSettingsItems()
             sub_item_table_func = function() return self:getCacheItems() end,
         },
     }
+end
+
+function OnePlugin:getUpdateItems()
+    local items = {}
+    local available = self.updater:available_version()
+    if available then
+        items[#items + 1] = {
+            text = T(_("Update to v%1"), available),
+            callback = function() self.updater:show_cached_update() end,
+        }
+    end
+    items[#items + 1] = {
+        text = _("Check for updates"),
+        callback = function() self.updater:check(true) end,
+    }
+    items[#items + 1] = {
+        text = _("Automatically check once a day"),
+        keep_menu_open = true,
+        check_callback_updates_menu = true,
+        checked_func = function()
+            return self.settings:get("update").auto_check == true
+        end,
+        callback = function(touchmenu_instance)
+            local update = self.settings:get("update")
+            update.auto_check = not (update.auto_check == true)
+            self.settings:set("update", update)
+            self.settings:flush()
+            if update.auto_check then self.updater:schedule_auto_check() end
+            if touchmenu_instance then touchmenu_instance:updateItems() end
+        end,
+    }
+    items[#items + 1] = {
+        text = _("Prefer proxy for updates"),
+        keep_menu_open = true,
+        check_callback_updates_menu = true,
+        checked_func = function()
+            return self.settings:get("update").prefer_proxy == true
+        end,
+        callback = function(touchmenu_instance)
+            local update = self.settings:get("update")
+            local function apply(enabled)
+                update.prefer_proxy = enabled
+                self.settings:set("update", update)
+                self.settings:flush()
+                if touchmenu_instance then touchmenu_instance:updateItems() end
+            end
+            if update.prefer_proxy == true then
+                apply(false)
+                return
+            end
+            UIManager:show(ConfirmBox:new{
+                text = _("Update proxies are third-party services. They can see update requests and may be unavailable without notice. Release packages will still be verified before installation. Prefer proxies?"),
+                ok_text = _("Enable"),
+                cancel_text = _("Cancel"),
+                ok_callback = function() apply(true) end,
+            })
+        end,
+    }
+    return items
 end
 
 function OnePlugin:getContentSettingsItems()
